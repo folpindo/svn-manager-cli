@@ -1,5 +1,10 @@
 package main
 
+/*
+	Todo:
+	1. Get the section where the match(path) is located and set it as target section.
+*/
+
 import (
 	"bytes"
 	"crypto/md5"
@@ -57,10 +62,11 @@ func main() {
 	path := flag.String("path", "", "Path on the repository (Eg. /ManagerRepo/trunk")
 	user := flag.String("user", "", "User to set or add (Eg. user123)")
 	perm := flag.String("perm", "r", "User permission (Eg. read-write)")
+	baseDir := flag.String("base_dir", "/var/svn-repos", "Repositories base directory")
 
 	flag.Parse()
 
-	reposBaseDir := "/var/svn-repos"
+	reposBaseDir := *baseDir
 	fileRepoPath := fmt.Sprintf("file://%s/%s", reposBaseDir, *repo)
 	cmd := exec.Command("/usr/bin/svn", "info", fileRepoPath)
 	err = cmd.Run()
