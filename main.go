@@ -1,10 +1,5 @@
 package main
 
-/*
-	Todo:
-	1. Get the section where the match(path) is located and set it as target section.
-*/
-
 import (
 	"bytes"
 	"crypto/md5"
@@ -76,7 +71,7 @@ func main() {
 	}
 	permission := *perm
 
-	if permission == "r-w" {
+	if permission == "r-w" || permission == "w" || permission == "write" {
 		permission = "read-write"
 	}
 
@@ -93,18 +88,38 @@ func main() {
 		log.Fatal(err)
 	}
 
+	pathPattern := fmt.Sprintf("^%s/.*$", *path)
+
+	targetSection := fmt.Sprintf("Make repos%s %s", *path, permission)
 	//fmt.Printf("repo: %s, path: %s, user: %s, perm: %s", *repo, *path, *user, *perm)
-	/*
-		for _, section := range cfg.Sections() {
-			keyshash := section.KeysHash()
-			fmt.Println(keyshash)
-			for k, v := range keyshash {
-				fmt.Printf("key: %s,value: %s\n", k, v)
+
+	for _, section := range cfg.Sections() {
+		keyshash := section.KeysHash()
+		//fmt.Println(keyshash)
+		foundMatch := false
+		foundAccess := false
+		var matchStr string
+		var accessStr string
+		for k, v := range keyshash {
+			//fmt.Printf("key: %s,value: %s\n", k, v)
+			if k == "match" && v == pathPattern {
+				//fmt.Println("Found match ", pathPattern, "on section ", section.Name())
+				matchStr = v
+				foundMatch = true
+
+			}
+			if k == "access" && v == permission {
+				//fmt.Println("Found access ", v)
+				accessStr = v
+				foundAccess = true
 			}
 		}
-	*/
-	targetSection := fmt.Sprintf("Make repos%s %s", *path, permission)
-	pathPattern := fmt.Sprintf("^%s/.*$", *path)
+		if foundMatch && foundAccess {
+			targetSection = section.Name()
+			fmt.Println("Found path match ", matchStr, "on section ", section.Name(), " for ", accessStr)
+		}
+	}
+
 	ts, err := cfg.GetSection(targetSection)
 	configFileBackup := fmt.Sprintf("%s-%s", configFile, today)
 	cfg.SaveTo(configFileBackup)
