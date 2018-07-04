@@ -84,11 +84,18 @@ func main() {
 	//fmt.Println(configFile)
 
 	cfg, err := ini.Load(configFile)
+
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	pathPattern := fmt.Sprintf("^%s/.*$", *path)
+	var pathPattern string
+
+	if ".*" != *path {
+		pathPattern = fmt.Sprintf("^%s/.*$", *path)
+	} else {
+		pathPattern = *path
+	}
 
 	targetSection := fmt.Sprintf("Make repos%s %s", *path, permission)
 	//fmt.Printf("repo: %s, path: %s, user: %s, perm: %s", *repo, *path, *user, *perm)
@@ -116,7 +123,7 @@ func main() {
 		}
 		if foundMatch && foundAccess {
 			targetSection = section.Name()
-			fmt.Println("Found path match ", matchStr, "on section ", section.Name(), " for ", accessStr)
+			fmt.Println("Found path match \"", matchStr, "\" on section \"", section.Name(), "\" for ", accessStr)
 		}
 	}
 
