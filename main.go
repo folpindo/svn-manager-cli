@@ -43,7 +43,7 @@ func main() {
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(stdout)
 	u := strings.TrimSuffix(buf.String(), "\n")
-	fmt.Println("user: ", u)
+
 	var userByte []byte
 	copy(userByte[:], u)
 
