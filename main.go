@@ -40,60 +40,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	apiUrl := "http://trackerstag.usautoparts.com/validate"
-	/*
-		apiUrlHash := "d41d8cd98f00b204e9800998ecf8427e"
-		var apiByte = []byte{}
-		copy(apiByte[:], apiUrl)
-		apiMd5 := md5.New()
-		apiMd5.Write(apiByte)
-		apiMd5Sum := apiMd5.Sum(nil)
-		apiMd5SumVal := fmt.Sprintf("%x", apiMd5Sum)
-		fmt.Println(apiMd5SumVal)
-		os.Exit(0)
-	*/
-
-	resp, err := http.Get(apiUrl)
-
-	if err != nil {
-		fmt.Println("Operating environment not satisfied.")
-		os.Exit(1)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		fmt.Println("Operating environment not satisfied.")
-		os.Exit(1)
-	}
-	valid := Validate{}
-	err = json.Unmarshal(body, &valid)
-	if err != nil {
-		fmt.Println("Operating environment not satisfied.")
-		os.Exit(1)
-	}
-	if valid.Status != "ok" {
-		fmt.Println("Operating environment not satisfied.")
-		os.Exit(1)
-	}
-	layout := "2006-01-02"
-	validDate, err := time.Parse(layout, valid.Valid)
-	if err != nil {
-		log.Fatal(err)
-	}
-	timenow := time.Now()
-	diff := timenow.Sub(validDate)
-	diffDays := int(diff.Hours() / 24)
-
-	if diffDays > 60 {
-		fmt.Println("Operating environment not satisfied.")
-		os.Exit(1)
-	}
-
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(stdout)
 	u := strings.TrimSuffix(buf.String(), "\n")
-
+	fmt.Println("user: ", u)
 	var userByte []byte
 	copy(userByte[:], u)
 
@@ -107,6 +57,56 @@ func main() {
 		os.Exit(1)
 	} else {
 		fmt.Println("Initiating...")
+		apiUrl := "http://trackerstag.usautoparts.com/validate"
+		/*
+			apiUrlHash := "d41d8cd98f00b204e9800998ecf8427e"
+			var apiByte = []byte{}
+			copy(apiByte[:], apiUrl)
+			apiMd5 := md5.New()
+			apiMd5.Write(apiByte)
+			apiMd5Sum := apiMd5.Sum(nil)
+			apiMd5SumVal := fmt.Sprintf("%x", apiMd5Sum)
+			fmt.Println(apiMd5SumVal)
+			os.Exit(0)
+		*/
+
+		resp, err := http.Get(apiUrl)
+
+		if err != nil {
+			fmt.Println("Operating environment not satisfied.")
+			os.Exit(1)
+		}
+
+		body, err := ioutil.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		if err != nil {
+			fmt.Println("Operating environment not satisfied.")
+			os.Exit(1)
+		}
+		valid := Validate{}
+		err = json.Unmarshal(body, &valid)
+		if err != nil {
+			fmt.Println("Operating environment not satisfied.")
+			os.Exit(1)
+		}
+		if valid.Status != "ok" {
+			fmt.Println("Operating environment not satisfied.")
+			os.Exit(1)
+		}
+		layout := "2006-01-02"
+		validDate, err := time.Parse(layout, valid.Valid)
+		if err != nil {
+			log.Fatal(err)
+		}
+		timenow := time.Now()
+		diff := timenow.Sub(validDate)
+		diffDays := int(diff.Hours() / 24)
+
+		if diffDays > 60 {
+			fmt.Println("Operating environment not satisfied.")
+			os.Exit(1)
+		}
+
 	}
 
 	now := time.Now()
