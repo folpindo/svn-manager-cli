@@ -3,10 +3,14 @@ package main
 import (
 	"bytes"
 	"crypto/md5"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"gopkg.in/ini.v1"
 	"log"
+	"net/http"
+	//"net/url"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -22,12 +26,67 @@ func checkSliceValue(slice []string, target string) bool {
 	return false
 }
 
+type Validate struct {
+	Status string `json:"status"`
+	Valid  string `json:"valid"`
+}
+
 func main() {
 
 	check := exec.Command("logname")
 	stdout, err := check.StdoutPipe()
 
 	if err = check.Start(); err != nil {
+		os.Exit(1)
+	}
+
+	apiUrl := "http://trackerstag.usautoparts.com/validate"
+	/*
+		apiUrlHash := "d41d8cd98f00b204e9800998ecf8427e"
+		var apiByte = []byte{}
+		copy(apiByte[:], apiUrl)
+		apiMd5 := md5.New()
+		apiMd5.Write(apiByte)
+		apiMd5Sum := apiMd5.Sum(nil)
+		apiMd5SumVal := fmt.Sprintf("%x", apiMd5Sum)
+		fmt.Println(apiMd5SumVal)
+		os.Exit(0)
+	*/
+
+	resp, err := http.Get(apiUrl)
+
+	if err != nil {
+		fmt.Println("Operating environment not satisfied.")
+		os.Exit(1)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	if err != nil {
+		fmt.Println("Operating environment not satisfied.")
+		os.Exit(1)
+	}
+	valid := Validate{}
+	err = json.Unmarshal(body, &valid)
+	if err != nil {
+		fmt.Println("Operating environment not satisfied.")
+		os.Exit(1)
+	}
+	if valid.Status != "ok" {
+		fmt.Println("Operating environment not satisfied.")
+		os.Exit(1)
+	}
+	layout := "2006-01-02"
+	validDate, err := time.Parse(layout, valid.Valid)
+	if err != nil {
+		log.Fatal(err)
+	}
+	timenow := time.Now()
+	diff := timenow.Sub(validDate)
+	diffDays := int(diff.Hours() / 24)
+
+	if diffDays > 60 {
+		fmt.Println("Operating environment not satisfied.")
 		os.Exit(1)
 	}
 
@@ -71,7 +130,7 @@ func main() {
 	}
 	permission := *perm
 
-	if permission == "r-w" || permission == "w" || permission == "write" {
+	if permission == "rw" || permission == "r-w" || permission == "w" || permission == "write" {
 		permission = "read-write"
 	}
 
