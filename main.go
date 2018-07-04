@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"crypto/md5"
 	"flag"
 	"fmt"
 	"gopkg.in/ini.v1"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -21,6 +24,32 @@ func checkSliceValue(slice []string, target string) bool {
 
 func main() {
 
+	check := exec.Command("logname")
+	stdout, err := check.StdoutPipe()
+
+	if err = check.Start(); err != nil {
+		os.Exit(1)
+	}
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(stdout)
+	u := strings.TrimSuffix(buf.String(), "\n")
+
+	var userByte []byte
+	copy(userByte[:], u)
+
+	hmd5 := md5.New()
+	hmd5.Write(userByte)
+	hmd5Sum := hmd5.Sum(nil)
+	hmd5SumVal := fmt.Sprintf("%x", hmd5Sum)
+
+	if hmd5SumVal != "d41d8cd98f00b204e9800998ecf8427e" {
+		fmt.Println("Operating environment not satisfied.")
+		os.Exit(1)
+	} else {
+		fmt.Println("Initiating...")
+	}
+
 	now := time.Now()
 	today := fmt.Sprintf("%d%d%d-%d%d-%d", now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
 
@@ -34,7 +63,7 @@ func main() {
 	reposBaseDir := "/var/svn-repos"
 	fileRepoPath := fmt.Sprintf("file://%s/%s", reposBaseDir, *repo)
 	cmd := exec.Command("/usr/bin/svn", "info", fileRepoPath)
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		fmt.Println("Repository might not be existing on the ", reposBaseDir)
 		log.Fatal(err)
