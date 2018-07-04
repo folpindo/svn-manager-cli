@@ -1,18 +1,11 @@
 package main
 
-/*
-Todo:
-1. check if repo is existing
-2. check if repo is configured
-3. check if there is a hook
-
-*/
-
 import (
 	"flag"
 	"fmt"
 	"gopkg.in/ini.v1"
 	"log"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -35,8 +28,17 @@ func main() {
 	path := flag.String("path", "", "Path on the repository (Eg. /ManagerRepo/trunk")
 	user := flag.String("user", "", "User to set or add (Eg. user123)")
 	perm := flag.String("perm", "r", "User permission (Eg. read-write)")
+
 	flag.Parse()
 
+	reposBaseDir := "/var/svn-repos"
+	fileRepoPath := fmt.Sprintf("file://%s/%s", reposBaseDir, *repo)
+	cmd := exec.Command("/usr/bin/svn", "info", fileRepoPath)
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println("Repository might not be existing on the ", reposBaseDir)
+		log.Fatal(err)
+	}
 	permission := *perm
 
 	if permission == "r-w" {
@@ -47,22 +49,25 @@ func main() {
 		permission = "read-only"
 	}
 
-	configFile := "/tmp/autopartswarehouse.com/hooks/commit-access-control.cfg"
+	configFile := fmt.Sprintf("%s/%s/hooks/commit-access-control.cfg", reposBaseDir, *repo)
+
+	//fmt.Println(configFile)
+
 	cfg, err := ini.Load(configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("repo: %s, path: %s, user: %s, perm: %s", *repo, *path, *user, *perm)
-
-	for _, section := range cfg.Sections() {
-		keyshash := section.KeysHash()
-		fmt.Println(keyshash)
-		for k, v := range keyshash {
-			fmt.Printf("key: %s,value: %s\n", k, v)
+	//fmt.Printf("repo: %s, path: %s, user: %s, perm: %s", *repo, *path, *user, *perm)
+	/*
+		for _, section := range cfg.Sections() {
+			keyshash := section.KeysHash()
+			fmt.Println(keyshash)
+			for k, v := range keyshash {
+				fmt.Printf("key: %s,value: %s\n", k, v)
+			}
 		}
-	}
-
+	*/
 	targetSection := fmt.Sprintf("Make repos%s %s", *path, permission)
 	pathPattern := fmt.Sprintf("^%s/.*$", *path)
 	ts, err := cfg.GetSection(targetSection)
@@ -70,14 +75,14 @@ func main() {
 	cfg.SaveTo(configFileBackup)
 
 	if err != nil {
-		fmt.Println("Section ", targetSection, " does not exist. Creating...")
+		fmt.Println("Section \"", targetSection, "\" does not exist. Creating...")
 		cfg.Section(targetSection).Key("match").SetValue(pathPattern)
 		cfg.Section(targetSection).Key("users").SetValue(*user)
 		cfg.Section(targetSection).Key("access").SetValue(permission)
 		cfg.SaveTo(configFile)
 		fmt.Println("Section has already been created.")
 	} else {
-		fmt.Println("There is already an existing section ", targetSection, ".")
+		fmt.Println("There is already an existing section \"", targetSection, "\".")
 		cfg.Section(targetSection).Key("match").SetValue(pathPattern)
 		users := ts.Key("users")
 		usersSlice := strings.Split(users.String(), " ")
