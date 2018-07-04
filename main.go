@@ -26,6 +26,16 @@ func checkSliceValue(slice []string, target string) bool {
 	return false
 }
 
+func removeIndex(slice []string, target string) []string {
+	var out []string
+	for _, v := range slice {
+		if v != target {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 type Validate struct {
 	Status string `json:"status"`
 	Valid  string `json:"valid"`
@@ -116,6 +126,7 @@ func main() {
 	path := flag.String("path", "", "Path on the repository (Eg. /ManagerRepo/trunk")
 	user := flag.String("user", "", "User to set or add (Eg. user123)")
 	perm := flag.String("perm", "r", "User permission (Eg. read-write)")
+	action := flag.String("action", "add", "Operation (add or remove)")
 	baseDir := flag.String("base_dir", "/var/svn-repos", "Repositories base directory")
 
 	flag.Parse()
@@ -191,24 +202,52 @@ func main() {
 	cfg.SaveTo(configFileBackup)
 
 	if err != nil {
-		fmt.Println("Section \"", targetSection, "\" does not exist. Creating...")
-		cfg.Section(targetSection).Key("match").SetValue(pathPattern)
-		cfg.Section(targetSection).Key("users").SetValue(*user)
-		cfg.Section(targetSection).Key("access").SetValue(permission)
-		cfg.SaveTo(configFile)
-		fmt.Println("Section has already been created.")
+		if *action == "add" {
+			fmt.Println("Section \"", targetSection, "\" does not exist. Creating...")
+			cfg.Section(targetSection).Key("match").SetValue(pathPattern)
+			cfg.Section(targetSection).Key("users").SetValue(*user)
+			cfg.Section(targetSection).Key("access").SetValue(permission)
+			cfg.SaveTo(configFile)
+			fmt.Println("Section has already been created.")
+		}
+		if *action == "remove" || *action == "delete" {
+			fmt.Println("Unable to remove user. Section does not exist.")
+		}
 	} else {
-		fmt.Println("There is already an existing section \"", targetSection, "\".")
+		if *action == "add" {
+			fmt.Println("Action :", *action)
+			fmt.Println("There is already an existing section \"", targetSection, "\".")
+		}
 		cfg.Section(targetSection).Key("match").SetValue(pathPattern)
 		users := ts.Key("users")
 		usersSlice := strings.Split(users.String(), " ")
 		if checkSliceValue(usersSlice, *user) != true {
-			fmt.Println("Adding user ", *user)
-			updatedUsers := fmt.Sprintf("%s %s", users.String(), *user)
-			cfg.Section(targetSection).Key("users").SetValue(updatedUsers)
-			cfg.SaveTo(configFile)
+			if *action == "remove" || *action == "delete" {
+				fmt.Println("Unable to remove user. User does not exist.")
+			} else {
+				fmt.Println("Adding user ", *user)
+				updatedUsers := fmt.Sprintf("%s %s", users.String(), *user)
+				cfg.Section(targetSection).Key("users").SetValue(updatedUsers)
+				cfg.SaveTo(configFile)
+			}
 		} else {
-			fmt.Println("User ", *user, " already exists.")
+			if *action == "remove" || *action == "delete" {
+				fmt.Println("Removing user ", *user)
+				usersList := users.String()
+				usersArr := strings.Split(usersList, " ")
+				//fmt.Println("For removal ", usersList)
+				//fmt.Println(usersArr)
+				newUsersList := removeIndex(usersArr, *user)
+				//fmt.Println(newUsersList)
+				newUsersListStr := strings.Join(newUsersList, " ")
+				//fmt.Println(newUsersListStr)
+				cfg.Section(targetSection).Key("users").SetValue(newUsersListStr)
+				cfg.SaveTo(configFile)
+				fmt.Println("User ", *user, " has been removed.")
+			} else {
+
+				fmt.Println("User ", *user, " already exists.")
+			}
 		}
 	}
 }
