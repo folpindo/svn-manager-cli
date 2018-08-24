@@ -139,7 +139,7 @@ func getDefaultSectionName(path string, permission string) string {
 
 	var section string
 
-	if ".*" != path || "/" != path {
+	if ".*" != path {
 		section = fmt.Sprintf("Make repos%s %s", path, permission)
 	} else {
 		section = fmt.Sprintf("Make everything %s for users", permission)
@@ -150,8 +150,7 @@ func getDefaultSectionName(path string, permission string) string {
 func getPathPattern(path string) string {
 
 	var pattern string
-	if ".*" != path || "/" != path {
-		fmt.Printf("%V", path)
+	if ".*" != path {
 		pattern = fmt.Sprintf("^%s/.*$", path)
 	} else {
 		pattern = path
@@ -286,6 +285,37 @@ func createSectionAddUser(config *ini.File, repository string, section string, p
 	return true
 }
 
+func addOnAllSectionsFunc(config *ini.File, user string, repository string, permission string) {
+
+	for _, s := range config.Sections() {
+
+		users := s.Key("users")
+		usersArr := strings.Split(users.String(), " ")
+
+		if s.Key("access").String() == permission {
+			if !checkSliceValue(usersArr, user) {
+				fmt.Println("Adding user ", user, " on section ", s, "on repository ", repository)
+				newUsersList := fmt.Sprintf("%s %s", users.String(), user)
+				configFile := repositoryConfigfileMap[repository]
+				s.Key("users").SetValue(newUsersList)
+				config.SaveTo(configFile)
+				fmt.Println("User ", user, " has been added on section ", s, "on repository ", repository)
+
+			}
+		} else {
+			if !checkSliceValue(usersArr, user) {
+				fmt.Println("Adding user ", user, " on section ", s, "on repository ", repository)
+				newUsersList := fmt.Sprintf("%s %s", users.String(), user)
+				configFile := repositoryConfigfileMap[repository]
+				s.Key("users").SetValue(newUsersList)
+				config.SaveTo(configFile)
+				fmt.Println("User ", user, " has been added on section ", s, "on repository ", repository)
+
+			}
+
+		}
+	}
+}
 func removeOnAllSectionsFunc(config *ini.File, user string, repository string) {
 
 	for _, s := range config.Sections() {
@@ -298,10 +328,14 @@ func removeOnAllSectionsFunc(config *ini.File, user string, repository string) {
 			newUsersList := removeIndex(usersArr, user)
 			newUsersListStr := strings.Join(newUsersList, " ")
 
-			s.Key("users").SetValue(newUsersListStr)
 			configFile := repositoryConfigfileMap[repository]
-			config.SaveTo(configFile)
+			if newUsersListStr == "" {
+				config.DeleteSection(s.Name())
+			} else {
+				s.Key("users").SetValue(newUsersListStr)
+			}
 
+			config.SaveTo(configFile)
 			fmt.Println("User ", user, " has been removed on section ", s, "on repository ", repository)
 
 		}
@@ -322,7 +356,8 @@ func main() {
 	action := flag.String("action", "add", "Operation (add or remove)")
 
 	baseDir := flag.String("base_dir", "/var/svn-repos", "Repositories base directory")
-	removeOnAllSections := flag.String("remove_on_all_sections", "none", "Remove user on section in a repository")
+	removeOnAllSections := flag.String("remove_on_all_sections", "none", "Remove user on all sections in a repository")
+	addOnAllSections := flag.String("add_on_all_sections", "none", "Add user on all sections in the repository")
 	removeOnAllRepositories := flag.String("remove_on_all_repositories_on_all_sections", "none", "Remove user on all repositories and all sections")
 
 	flag.Parse()
@@ -333,12 +368,14 @@ func main() {
 
 	repositoryConfigfileMap = make(map[string]string)
 
-	if *removeOnAllSections != "none" && *removeOnAllSections == "all" {
+	if (*removeOnAllSections != "none" || *addOnAllSections != "none") && (*removeOnAllSections == "all" || *addOnAllSections == "all") {
 		allSections = true
+		fmt.Println("On all sections")
 	}
 
 	if *removeOnAllRepositories != "none" && *removeOnAllRepositories == "all" {
 		allRepository = true
+		fmt.Println("On all repositories")
 	}
 
 	if allSections == true && allRepository != true {
@@ -361,11 +398,23 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		removeOnAllSectionsFunc(cfg, *user, *repo)
+		if *removeOnAllSections == "all" {
+			removeOnAllSectionsFunc(cfg, *user, *repo)
+			fmt.Println("Removed on all sections")
+		}
+		if *addOnAllSections == "all" {
+			permission := ""
+			if *perm != "" {
+				permission = getStandardPermission(*perm)
+			}
+			addOnAllSectionsFunc(cfg, *user, *repo, permission)
+			fmt.Println("Added on all sections")
+		}
 
 	}
 
 	if allSections != true && allRepository != true {
+		fmt.Println("Individual...")
 
 		fileRepoPath := fmt.Sprintf("file://%s/%s", reposBaseDir, *repo)
 		cmd := exec.Command("/usr/bin/svn", "info", fileRepoPath)
@@ -448,7 +497,11 @@ func main() {
 					usersArr := strings.Split(usersList, " ")
 					newUsersList := removeIndex(usersArr, *user)
 					newUsersListStr := strings.Join(newUsersList, " ")
-					cfg.Section(targetSection).Key("users").SetValue(newUsersListStr)
+					if newUsersListStr == "" {
+						cfg.DeleteSection(targetSection)
+					} else {
+						cfg.Section(targetSection).Key("users").SetValue(newUsersListStr)
+					}
 					cfg.SaveTo(configFile)
 					fmt.Println("User ", *user, " has been removed.")
 				case "add":
