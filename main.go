@@ -7,10 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"gopkg.in/ini.v1"
+	"io/ioutil"
 	"log"
 	"net/http"
-	//"net/url"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -151,8 +150,8 @@ func getDefaultSectionName(path string, permission string) string {
 func getPathPattern(path string) string {
 
 	var pattern string
-
 	if ".*" != path || "/" != path {
+		fmt.Printf("%V", path)
 		pattern = fmt.Sprintf("^%s/.*$", path)
 	} else {
 		pattern = path
@@ -161,7 +160,7 @@ func getPathPattern(path string) string {
 
 }
 
-func getSection(config *File, path string, user string, permission string) string {
+func getSection(config *ini.File, path string, user string, permission string) string {
 
 	pathPattern := getPathPattern(path)
 	section := getDefaultSectionName(path, permission)
@@ -207,7 +206,7 @@ func getSection(config *File, path string, user string, permission string) strin
 
 }
 
-func backupConfigFile(config *File, backupFilename string) bool {
+func backupConfigFile(config *ini.File, backupFilename string) bool {
 	err := config.SaveTo(backupFilename)
 	if err != nil {
 		log.Fatal(err)
@@ -216,7 +215,7 @@ func backupConfigFile(config *File, backupFilename string) bool {
 	return true
 }
 
-func removeOnSection(config *File, repository string, section string, path string, user string, permission string) bool {
+func removeOnSection(config *ini.File, repository string, section string, path string, user string, permission string) bool {
 
 	ts, err := config.GetSection(section)
 	pathPattern := getPathPattern(path)
@@ -243,7 +242,7 @@ func removeOnSection(config *File, repository string, section string, path strin
 		configFile := repositoryConfigfileMap[repository]
 		config.SaveTo(configFile)
 
-		fmt.Println("User ", *user, " has been removed.")
+		fmt.Println("User ", user, " has been removed.")
 
 	} else {
 
@@ -274,12 +273,12 @@ func getToday() string {
 	return today
 }
 
-func addUser(config *File, repository string, section string, pattern string, user string, permission string) bool {
-	config.Section(targetSection).Key("match").SetValue(pathPattern)
-	config.Section(targetSection).Key("users").SetValue(user)
-	config.Section(targetSection).Key("access").SetValue(permission)
+func createSectionAddUser(config *ini.File, repository string, section string, pattern string, user string, permission string) bool {
+	config.Section(section).Key("match").SetValue(pattern)
+	config.Section(section).Key("users").SetValue(user)
+	config.Section(section).Key("access").SetValue(permission)
 	configFile := repositoryConfigfileMap[repository]
-	config.SaveTo(configFile)
+	err := config.SaveTo(configFile)
 	if err != nil {
 		log.Fatal(err)
 		return false
@@ -287,14 +286,14 @@ func addUser(config *File, repository string, section string, pattern string, us
 	return true
 }
 
-func removeOnAllSectionsFunc(config *File, user string) {
+func removeOnAllSectionsFunc(config *ini.File, user string, repository string) {
 
 	for _, s := range config.Sections() {
 		users := s.Key("users")
 		usersArr := strings.Split(users.String(), " ")
 		if checkSliceValue(usersArr, user) {
 
-			fmt.Println("Removing user ", user, " on ")
+			fmt.Println("Removing user ", user, " on section ", s, "on repository ", repository)
 
 			newUsersList := removeIndex(usersArr, user)
 			newUsersListStr := strings.Join(newUsersList, " ")
@@ -303,7 +302,7 @@ func removeOnAllSectionsFunc(config *File, user string) {
 			configFile := repositoryConfigfileMap[repository]
 			config.SaveTo(configFile)
 
-			fmt.Println("User ", *user, " has been removed.")
+			fmt.Println("User ", user, " has been removed on section ", s, "on repository ", repository)
 
 		}
 
@@ -311,12 +310,10 @@ func removeOnAllSectionsFunc(config *File, user string) {
 
 }
 
-//func removeOnAllSections(config *File) {}
+//func removeOnAllSections(config *ini.File) {}
 //func removeOnAllRepositories()         {}
 
 func main() {
-
-	init()
 
 	repo := flag.String("repo", "", "Repository name (Eg. example.com)")
 	path := flag.String("path", "", "Path on the repository (Eg. /ManagerRepo/trunk")
@@ -334,6 +331,8 @@ func main() {
 	allRepository := false
 	allSections := false
 
+	repositoryConfigfileMap = make(map[string]string)
+
 	if *removeOnAllSections != "none" && *removeOnAllSections == "all" {
 		allSections = true
 	}
@@ -342,11 +341,11 @@ func main() {
 		allRepository = true
 	}
 
-	if allSections {
+	if allSections == true && allRepository != true {
 
 		fileRepoPath := fmt.Sprintf("file://%s/%s", reposBaseDir, *repo)
 		cmd := exec.Command("/usr/bin/svn", "info", fileRepoPath)
-		err = cmd.Run()
+		err := cmd.Run()
 
 		if err != nil {
 			fmt.Println("Repository might not be existing on the ", reposBaseDir)
@@ -355,14 +354,14 @@ func main() {
 
 		configFile := fmt.Sprintf("%s/%s/hooks/commit-access-control.cfg", reposBaseDir, *repo)
 
+		repositoryConfigfileMap[*repo] = configFile
+
 		cfg, err := ini.Load(configFile)
-		fmt.Printf("%V", cfg)
-		os.Exit()
 
 		if err != nil {
 			log.Fatal(err)
 		}
-		removeOnAllSectionsFunc(cfg, *user)
+		removeOnAllSectionsFunc(cfg, *user, *repo)
 
 	}
 
@@ -370,7 +369,7 @@ func main() {
 
 		fileRepoPath := fmt.Sprintf("file://%s/%s", reposBaseDir, *repo)
 		cmd := exec.Command("/usr/bin/svn", "info", fileRepoPath)
-		err = cmd.Run()
+		err := cmd.Run()
 
 		if err != nil {
 			fmt.Println("Repository might not be existing on the ", reposBaseDir)
@@ -407,7 +406,7 @@ func main() {
 			switch *action {
 			case "add":
 				fmt.Println("Section \"", targetSection, "\" does not exist. Creating...")
-				added := addUser(cfg, *repo, targetSection, pathPattern, *user, permission)
+				added := createSectionAddUser(cfg, *repo, targetSection, pathPattern, *user, permission)
 				if added {
 					fmt.Println("Section has already been created.")
 				}
@@ -459,14 +458,16 @@ func main() {
 				}
 			}
 		}
-	} else {
-		fmt.Println("Operation not yet supported for multiple repositories and multiple sections.")
-		files, err := ioutil.ReadDir(".")
-		if err != nil {
-			log.Fatal(err)
-		}
-		for _, file := range files {
-			fmt.Println(file.Name())
-		}
 	}
+	/*
+		else {
+			fmt.Println("Operation not yet supported for multiple repositories and multiple sections.")
+			files, err := ioutil.ReadDir(".")
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, file := range files {
+				fmt.Println(file.Name())
+			}
+		}*/
 }
